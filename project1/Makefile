@@ -1,7 +1,7 @@
 TARGET = 3600sh
 
 $(TARGET): $(TARGET).c
-	gcc -std=c99 -O0 -g -lm -Wall -pedantic -Werror -Wextra -o $@ $<
+	gcc -D_POSIX_SOURCE -std=c99 -O0 -g -lm -Wall -pedantic -Werror -Wextra -o $@ $<
 
 all: $(TARGET)
 
