@@ -5,9 +5,67 @@
 
 #define USE(x) (x) = (x)
 
-static char * getword(char * begin, char **end_ptr) {
+//functions -->
+char * getword(char * begin, char **end_ptr);
+void getargs(char cmd[], int *argcp, char *argv[]);
+void execute (char *argv[]);
+void interrupt_handler();
+void myOut(char *argv[], char* fileName);
+int isChar(char *c, char *argv[], int size);
+int findChar(char *find, char *values[], int size);
+char * argumentParser_after(char *argv[], int position, int size);
+
+int main(int argc, char *argv[]) {
+	USE(argc);
+	USE(argv);
+	setvbuf(stdout, NULL, _IONBF, 0);
+
+	void interrupt_handler();
+  char cmd[MAXLINE] = "";
+  char *childargv[MAXARGS];
+  int childargc = 0;
+	
+	signal(SIGINT, interrupt_handler);
+
+	char hostname[512] = "";
+	gethostname(hostname, 512);
+
+	while (!feof(stdin)) {
+
+		printf("%s@%s:%s> ", getenv("USER"),hostname,getenv("PWD"));
+		getargs(cmd, &childargc, childargv);
+
+	  if ( childargc > 0 && strcmp(childargv[0], "exit") == 0 ) {
+	    do_exit();
+		}
+    else if ( childargc > 2 && isChar(">", childargv, childargc) == 0 ) {
+      char fileName[MAXLINE - 2] = "";
+      
+      int pos = findChar(">", childargv, childargc);
+			strcpy(fileName,(argumentParser_after(childargv, pos, childargc)));
+      
+      for (int i = 0; i <= pos; i++) {
+        int c = 0;
+        for (int i = pos+c; i < childargc; i++) {
+          childargv[i] = childargv[i+1];
+        }
+        c++;
+      }
+			myOut(childargv, fileName);
+		}
+	  else {
+	    execute(childargv);
+		}
+	}
+
+	do_exit();
+  return 0;
+
+}
+
+char * getword(char * begin, char **end_ptr) {
   char * end = begin;
-  while ( *begin == ' ' || *begin == '\t')
+  while ( *begin == ' ' || *begin == '\t' || *begin == 92)
     begin++;  /* Get rid of leading spaces and tabs */
     end = begin;
 
@@ -28,7 +86,7 @@ static char * getword(char * begin, char **end_ptr) {
   return begin; /* This word is now a null-terminated string. return it. */
 }
 
-static void getargs(char cmd[], int *argcp, char *argv[]) {
+void getargs(char cmd[], int *argcp, char *argv[]) {
   char *cmdp = cmd;
   char *end;
   int i = 0;
@@ -49,7 +107,7 @@ static void getargs(char cmd[], int *argcp, char *argv[]) {
 	*argcp = i;
 }
 
-static void execute (char *argv[]) {  
+void execute (char *argv[]) {  
   pid_t childpid;
   childpid = fork();
 
@@ -126,7 +184,7 @@ int findChar(char *find, char *values[], int size) {
 	return i;
 }
 
-static char * argumentParser_after(char *argv[], int position, int size) {
+char * argumentParser_after(char *argv[], int position, int size) {
   char *after = malloc(sizeof (char) * 128);
 
   for(int i=position+1; i<=size-1; i++) {
@@ -135,54 +193,6 @@ static char * argumentParser_after(char *argv[], int position, int size) {
 
   return after;
 	free(after);
-}
-
-int main(int argc, char *argv[]) {
-	USE(argc);
-	USE(argv);
-	setvbuf(stdout, NULL, _IONBF, 0);
-
-	void interrupt_handler();
-  char cmd[MAXLINE] = "";
-  char *childargv[MAXARGS];
-  int childargc = 0;
-	
-	signal(SIGINT, interrupt_handler);
-
-	char hostname[512] = "";
-	gethostname(hostname, 512);
-
-	while (!feof(stdin)) {
-
-		printf("%s@%s:%s> ", getenv("USER"),hostname,getenv("PWD"));
-		getargs(cmd, &childargc, childargv);
-
-	  if ( childargc > 0 && strcmp(childargv[0], "exit") == 0 ) {
-	    do_exit();
-		}
-    else if ( childargc > 2 && isChar(">", childargv, childargc) == 0 ) {
-      char fileName[MAXLINE - 2] = "";
-      
-      int pos = findChar(">", childargv, childargc);
-			strcpy(fileName,(argumentParser_after(childargv, pos, childargc)));
-      
-      for (int i = 0; i <= pos; i++) {
-        int c = 0;
-        for (int i = pos+c; i < childargc; i++) {
-          childargv[i] = childargv[i+1];
-        }
-        c++;
-      }
-			myOut(childargv, fileName);
-		}
-	  else {
-	    execute(childargv);
-		}
-	}
-
-	do_exit();
-  return 0;
-
 }
 
 void do_exit() {
