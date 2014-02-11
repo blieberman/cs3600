@@ -37,6 +37,50 @@
 
 #include "3600fs.h"
 #include "disk.h"
+//struct for the VCB, first block of the file system
+typedef struct vcb_s {
+        // a magic number to identify your disk
+        int magic;
+        
+        // description of the disk layout
+        int blocksize;
+        int de_start;
+        int de_length;
+        int fat_start;
+        int fat_length;
+        int db_start;
+        
+        // metadata for the root directory
+        uid_t user;
+        gid_t group;
+        mode_t mode;
+        struct timespec access_time;
+        struct timespec modify_time;
+        struct timespec create_time;
+} vcb;
+
+// struct for Directory Entries
+typedef struct dirent_s {
+        unsigned int valid;
+        unsigned int first_block;
+        unsigned int size;
+        uid_t user;
+        gid_t group;
+        mode_t mode;
+        struct timespec access_time;
+        struct timespec modify_time;
+        struct timespec create_time;
+        char name[];
+} dirent;
+
+// struct for FAT
+typedef struct fatent_s {
+        unsigned int used:1; 
+        unsigned int eof:1;
+        unsigned int next:30;
+} fatent;
+
+
 
 /*
  * Initialize filesystem. Read in file system metadata and initialize
@@ -55,6 +99,18 @@ static void* vfs_mount(struct fuse_conn_info *conn) {
 
   /* 3600: YOU SHOULD ADD CODE HERE TO CHECK THE CONSISTENCY OF YOUR DISK
            AND LOAD ANY DATA STRUCTURES INTO MEMORY */
+           
+  //allocate your VCB
+  vcb myvcb;
+  // set up a temporary BLOCKSIZE-d location
+  char tmp[BLOCKSIZE];
+  memset(tmp, 0, BLOCKSIZE);
+  
+  //read it in from disk
+  dread(0, tmp);
+  
+  //and copy it into your VCB structure
+  memcpy(&myvcb, tmp, sizeof(vcb));
 
   return NULL;
 }
@@ -320,4 +376,3 @@ int main(int argc, char *argv[]) {
     }
     return fuse_main(argc, argv, &vfs_oper, NULL);
 }
-
