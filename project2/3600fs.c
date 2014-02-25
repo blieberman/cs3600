@@ -1,7 +1,6 @@
 /*
  * CS3600, Spring 2014
- * Project 2 Starter Code
- * (c) 2013 Alan Mislove
+ * Project 2
  *
  * This file contains all of the basic functions that you will need 
  * to implement for this project.  Please see the project handout
@@ -37,50 +36,6 @@
 
 #include "3600fs.h"
 #include "disk.h"
-//struct for the VCB, first block of the file system
-typedef struct vcb_s {
-        // a magic number to identify your disk
-        int magic;
-        
-        // description of the disk layout
-        int blocksize;
-        int de_start;
-        int de_length;
-        int fat_start;
-        int fat_length;
-        int db_start;
-        
-        // metadata for the root directory
-        uid_t user;
-        gid_t group;
-        mode_t mode;
-        struct timespec access_time;
-        struct timespec modify_time;
-        struct timespec create_time;
-} vcb;
-
-// struct for Directory Entries
-typedef struct dirent_s {
-        unsigned int valid;
-        unsigned int first_block;
-        unsigned int size;
-        uid_t user;
-        gid_t group;
-        mode_t mode;
-        struct timespec access_time;
-        struct timespec modify_time;
-        struct timespec create_time;
-        char name[];
-} dirent;
-
-// struct for FAT
-typedef struct fatent_s {
-        unsigned int used:1; 
-        unsigned int eof:1;
-        unsigned int next:30;
-} fatent;
-
-
 
 /*
  * Initialize filesystem. Read in file system metadata and initialize
