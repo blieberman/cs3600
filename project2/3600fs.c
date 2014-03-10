@@ -58,11 +58,11 @@ static void* vfs_mount(struct fuse_conn_info *conn) {
   //allocate your VCB
   vcb myvcb;
   //some error catching on the VCB
-  if (dread(&myvcb, 0) < 0)
+  if (dread(0, &myvcb) < 0)
     perror("Error while reading VCB");
 
   // invalid magic number
-  if (vcb.magic != MAGICNUM) { 
+  if (myvcb.magic != MAGICNUM) { 
     fprintf(stderr, "Error: Unrecognized ID.\n");
   }
   // Disk was not unmounted cleanly last time.
@@ -73,15 +73,10 @@ static void* vfs_mount(struct fuse_conn_info *conn) {
   // disk is dirty until it is unmounted.
   myvcb.dirty = 1;
   
-  // set up a temporary BLOCKSIZE-d location
-  char tmp[BLOCKSIZE];
-  memset(tmp, 0, BLOCKSIZE);
-  
-  //read it in from disk
-  dread(0, tmp);
-  
-  //and copy it into your VCB structure
-  memcpy(&myvcb, tmp, sizeof(vcb));
+  //write modified vcb back to disk
+  if(dwrite(0, &myvcb) < 0) {
+    perror("Error while writing VCB");
+  }
 
   return NULL;
 }
@@ -96,6 +91,22 @@ static void vfs_unmount (void *private_data) {
   /* 3600: YOU SHOULD ADD CODE HERE TO MAKE SURE YOUR ON-DISK STRUCTURES
            ARE IN-SYNC BEFORE THE DISK IS UNMOUNTED (ONLY NECESSARY IF YOU
            KEEP DATA CACHED THAT'S NOT ON DISK */
+           
+           
+           
+  // Read VCB from disk.
+  vcb myvcb;
+  if (dread(0, &myvcb) < 0) {
+    perror("Error while reading VCB");
+  }
+
+  // Mark disk as clean.
+  control.dirty = 0;
+
+  // Write VCB back to disk.
+  if (dwrite(&myvcb, 0) < 0)
+    perror("Error while writing VCB");
+
 
   // Do not touch or move this code; unconnects the disk
   dunconnect();
