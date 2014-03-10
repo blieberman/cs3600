@@ -57,6 +57,22 @@ static void* vfs_mount(struct fuse_conn_info *conn) {
            
   //allocate your VCB
   vcb myvcb;
+  //some error catching on the VCB
+  if (dread(&myvcb, 0) < 0)
+    perror("Error while reading VCB");
+
+  // invalid magic number
+  if (vcb.magic != MAGICNUM) { 
+    fprintf(stderr, "Error: Unrecognized ID.\n");
+  }
+  // Disk was not unmounted cleanly last time.
+  else if (myvcb.dirty) { 
+    fprintf(stderr, "Error: Disk was not unmounted properly.\n");
+  }
+  
+  // disk is dirty until it is unmounted.
+  myvcb.dirty = 1;
+  
   // set up a temporary BLOCKSIZE-d location
   char tmp[BLOCKSIZE];
   memset(tmp, 0, BLOCKSIZE);
