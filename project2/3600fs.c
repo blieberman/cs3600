@@ -100,12 +100,13 @@ static void vfs_unmount (void *private_data) {
     perror("Error while reading VCB");
   }
 
-  // Mark disk as clean.
-  control.dirty = 0;
+  // set dirty to 0 to show success in unmounting
+  myvcb.dirty = 0;
 
-  // Write VCB back to disk.
-  if (dwrite(&myvcb, 0) < 0)
+  // write modified VCB back to the disk
+  if (dwrite( 0, &myvcb) < 0) {
     perror("Error while writing VCB");
+  }
 
 
   // Do not touch or move this code; unconnects the disk
