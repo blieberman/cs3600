@@ -15,6 +15,8 @@
 typedef struct vcb_s {
   // a magic number to identify your disk
   int magic;
+  // "dirty" variable, 0 when unmounted correctly
+  int dirty;
 
   // description of the disk layout
   int blocksize;
