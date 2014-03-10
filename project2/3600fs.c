@@ -133,23 +133,47 @@ static int vfs_getattr(const char *path, struct stat *stbuf) {
   stbuf->st_blksize = BLOCKSIZE;
 
   /* 3600: YOU MUST UNCOMMENT BELOW AND IMPLEMENT THIS CORRECTLY */
+  vcb myvcb;
+  dread(0, &myvcb);
   
-  /*
-  if (The path represents the root directory)
+  int current = 0;
+  int found = 0;
+  path++;
+  //path is the root directory
+  if (strcmp(path, "") == 0) {
+    
     stbuf->st_mode  = 0777 | S_IFDIR;
-  else 
-    stbuf->st_mode  = <<file mode>> | S_IFREG;
+  }
+  else {
+    
+    for (current = myvcb.de_start; current < myvcb.de_start + myvcb.de_length; current++) {
+      dirent tmp;
+      dread(current, &tmp);
+      if (strcmp(tmp.name, path) == 0) {
+        stbuf->st_mode  = tmp.mode | S_IFREG;
+        found = 1;
+        break;
+      }
+      
+    }
+    if (found == 0) {
+      return -ENOENT;
+    }
+  
+    
+  }  
+    
 
-  stbuf->st_uid     = // file uid
-  stbuf->st_gid     = // file gid
-  stbuf->st_atime   = // access time 
-  stbuf->st_mtime   = // modify time
-  stbuf->st_ctime   = // create time
-  stbuf->st_size    = // file size
-  stbuf->st_blocks  = // file size in blocks
-    */
+  stbuf->st_uid     = current.user;
+  stbuf->st_gid     = current.group;
+  stbuf->st_atime   = current.access_time; 
+  stbuf->st_mtime   = current.modify_time;
+  stbuf->st_ctime   = current.create_time;
+  stbuf->st_size    = current.size;
+  stbuf->st_blocks  = current.size / BLOCKSIZE;
+  
 
-  return 0;
+  return 0  ;
 }
 
 /*
@@ -194,9 +218,35 @@ static int vfs_mkdir(const char *path, mode_t mode) {
 static int vfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                        off_t offset, struct fuse_file_info *fi)
 {
-
-    return 0;
+  
+  //reading root directory
+  if(strcmp(path, "/") == 0){
+    //read in VCB
+      vcb myvcb;
+      char temp_vb[BLOCKSIZE];
+      memset(temp_vb, 0, BLOCKSIZE);
+      dread(0, temp_vb);
+      memcpy(&myvcb, temp_vb, sizeof(vcb));
+  
+  
+      for(int i = myvcb.de_start; i < myvcb.de_start+myvcb.de_length; i++){
+         dirent de;
+         char temp_de[BLOCKSIZE];
+         memset(temp_de, 0, BLOCKSIZE);
+         dread(i, temp_de);
+         memcpy(&de, temp_de, sizeof(de));
+      
+         if(filler(buf, de.name, NULL, 0) != 0){
+	           return -ENOMEM;
+         }
+      }
+      return 0;
+  }
+  else{
+      return -1;
+  }
 }
+
 
 /*
  * Given an absolute path to a file (for example /a/b/myFile), vfs_create 
@@ -204,6 +254,46 @@ static int vfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
  *
  */
 static int vfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+    //make sure the file doesn't already exist
+    int current = 1;
+    for (current; current < myvcb.de_start + myvcb.de_length; current++) {
+      dirent dt;
+      dread(current, &dt);
+      if (strcmp(dt.name, path) == 0) {
+        return -EEXIST;
+      }
+    }
+    
+    //make sure there is room for the new file
+    int empty = -1;
+    for (current = 1; i < myvcb.de_length; i++) {
+      dirent dr;
+      dread(current,&dr);
+      if(dr.valid == 0){
+        empty = current;
+        break;
+      }
+    }
+    
+    //if no room left, error
+    if (empty == -1) {
+      return -1;
+    }
+    
+    // otherwise, create the dirent
+    dirent de;
+    
+    
+    de.valid = 1;
+    de.user = geteuid();
+    de.group = getegid();
+    de.mode = mode;
+    clock_gettime(CLOCK_REALTIME, &de.access_time);
+    clock_gettime(CLOCK_REALTIME, &de.modify_time);
+    clock_gettime(CLOCK_REALTIME, &de.create_time);
+    strcpy(de.name, path);
+    dwrite(empty, &de);
+    
     return 0;
 }
 
@@ -223,8 +313,32 @@ static int vfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
 static int vfs_read(const char *path, char *buf, size_t size, off_t offset,
                     struct fuse_file_info *fi)
 {
+  
+  int bytes = 0;
+  vcb myvcb;
+  dread(0, &myvcb);
+  int current;
+  for (current = myvcb.de_start; current < myvcb.de_start + myvcb.de_length; current++) {
+    dirent de;
+    dread(current, &de);
+    
+    if (strcmp(path, de.name) == 0) {
+      if (size + offset > de.size) {
+        bytes = de.size - offset;
+      }
+      
+      if(offset % BLOCKSIZE + bytes <= BLOCKSIZE) {
+        char temp[BLOCKSIZE];
+        memset(temp, 0, BLOCKSIZE);
+        dread(myvcb.db_start + de.first_block, temp);
+        memcpy(buf, temp + offset % BLOCKSIZE, bytes);
+      }
+      return bytes;
+    }
+  }
+  return -1;
 
-    return 0;
+  
 }
 
 /*
