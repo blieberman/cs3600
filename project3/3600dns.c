@@ -22,6 +22,8 @@
 
 #include "3600dns.h"
 
+#define MAX_ARG_LEN 64
+
 /**
  * This function will print a hex dump of the provided packet to the screen
  * to help facilitate debugging.  In your milestone and final submission, you 
@@ -82,6 +84,7 @@ static void dump_packet(unsigned char *data, int size) {
 }
 
 int main(int argc, char *argv[]) {
+  int debug = 1; // debug mode is true with 1
   /**
    * I've included some basic code for opening a socket in C, sending
    * a UDP packet, and then receiving a response (or timeout).  You'll 
@@ -89,7 +92,66 @@ int main(int argc, char *argv[]) {
    * get you started.
    */
 
-  // process the arguments
+  /**
+   * process the arguments:
+   * ./3600dns @<server:port> <name>
+   * port is optional with default value of 53
+   */
+  
+  // String version of UDP port number of the DNS server.
+  int port = 53;
+  // The IP address of the DNS server, in a.b.c.d format.
+  char server[MAX_ARG_LEN] = "\0";
+  // The name to query for
+  char name[MAX_ARG_LEN] = "\0";
+    
+  if (argc != 3) {
+    fprintf(stderr, "usage: %s @<server:port> <name>\n", argv[0]);
+    exit(1);
+  }
+  else {  
+    if (argv[1][0] == '@') { // skipping argv[0]
+      strcpy(name, argv[2]); //copy argv[2] to name
+      
+      // for debugging
+      if (debug == 1) {
+        fprintf(stderr, "server: %s\n", server);
+        fprintf(stderr, "port: %i\n", port);
+        fprintf(stderr, "name: %s\n", name);
+      }
+      
+      int colonpos = 0; // position of colon for port in first argument
+      char *colon; // buffer for strchr
+      
+      /* search for the optional ":" in first argument */
+      colon = strchr(argv[1], ':');
+      
+      if (colon) {
+        char buf[3] = "\0";
+        
+        colonpos = (int)(colon - argv[1]);
+        strncat(server, argv[1]+1, colonpos-1); // copy after "@" and before ":"
+        strncat(buf, argv[1]+colonpos+1, 3); // copy after ":" to end of char*
+        
+        port = atoi(buf); // atoi char* to int
+      }
+      else {
+        strcpy(server, argv[1]+1); // if no port just copy whole argv[1]
+      }
+    }
+    else {
+      fprintf(stderr, "usage: %s @<server:port> <name>\n", argv[0]);
+    }
+  }
+  
+  // for debugging
+  if (debug == 1) {
+    fprintf(stderr, "server: %s\n", server);
+    fprintf(stderr, "port: %i\n", port);
+    fprintf(stderr, "name: %s\n", name);
+  }
+
+  /*
 
   // construct the DNS request
 
@@ -119,7 +181,7 @@ int main(int argc, char *argv[]) {
 
   // construct the timeout
   struct timeval t;
-  t.tv_sec = <<your timeout in seconds>>;
+  t.tv_sec = 5; //5 second timeout as specificied
   t.tv_usec = 0;
 
   // wait to receive, or for a timeout
@@ -132,6 +194,7 @@ int main(int argc, char *argv[]) {
   }
 
   // print out the result
+  */
   
   return 0;
 }
