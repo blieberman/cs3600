@@ -1,8 +1,8 @@
 /*
+ * Ben Lieberman
+ * CCIS: bliebs
+ * Team: blieberman
  * CS3600, Spring 2014
- * Project 3 Starter Code
- * (c) 2013 Alan Mislove
- *
  */
 
 #include <math.h>
@@ -22,15 +22,46 @@
 
 #include "3600dns.h"
 
-#define MAX_ARG_LEN 64
+#define MAX_ARG_LEN 39 // IPv6 addresses are 39 bytes
+
+/* converts name to proper packet format (i.e., www.google.com -> 3www6google3com0)
+ * numbers indicate the #of bytes to follow, and replace all periods (to separate
+ * top-level, second-level, etc. domains) the 0 appended to the end is a signal
+ * meaning “end of name”.
+ */
+static void convert_name(char *name) {
+  char *buffer = malloc(sizeof(int)); //buffer to copy tok
+  char toksize[20] = "\0"; // size of the tok to append on buffer
+  char *tok;
+  char converted_name[strlen(name) + 2];
+  int size = 0;
+  
+  tok = strtok(name, "."); // split on each "."
+  size = strlen(tok);
+  sprintf(toksize, "%d", size);
+  strcat(buffer, toksize); //cat size
+  strcat(buffer, tok); //cat string
+  
+  while ( tok = strtok(NULL, ".") ) { // go through the whole string
+    size = 0;
+    size = strlen(tok);
+    sprintf(toksize, "%d", size); //size to string form (kind of nasty)
+    strcat(buffer, toksize); //cat size
+    strcat(buffer, tok); //cat string
+    
+    //DEBUG: fprintf(stderr, "buffer: %s\n", buffer);
+ }
+ strcat(buffer, "0"); //cat final zero to imply end of string
+ strcpy(name, buffer);
+ free(buffer);
+ return name;
+}
+  
 
 /**
  * This function will print a hex dump of the provided packet to the screen
  * to help facilitate debugging.  In your milestone and final submission, you 
- * MUST call dump_packet() with your packet right before calling sendto().  
- * You're welcome to use it at other times to help debug, but please comment those
- * out in your submissions.
- *
+ * MUST call dump_packet() with your packet right before calling sendto().
  * DO NOT MODIFY THIS FUNCTION
  *
  * data - The pointer to your packet buffer
@@ -85,40 +116,24 @@ static void dump_packet(unsigned char *data, int size) {
 
 int main(int argc, char *argv[]) {
   int debug = 1; // debug mode is true with 1
-  /**
-   * I've included some basic code for opening a socket in C, sending
-   * a UDP packet, and then receiving a response (or timeout).  You'll 
-   * need to fill in many of the details, but this should be enough to
-   * get you started.
-   */
 
   /**
    * process the arguments:
-   * ./3600dns @<server:port> <name>
+   * ./3600dns @<ip_address:port> <name>
    * port is optional with default value of 53
    */
   
-  // String version of UDP port number of the DNS server.
-  int port = 53;
-  // The IP address of the DNS server, in a.b.c.d format.
-  char server[MAX_ARG_LEN] = "\0";
-  // The name to query for
-  char name[MAX_ARG_LEN] = "\0";
+  int port = 53; // UDP port number of DNS Server
+  char *ip_address = malloc((MAX_ARG_LEN + 1) * sizeof(char));
+  char *name = malloc((MAX_ARG_LEN + 1) * sizeof(char));
     
   if (argc != 3) {
-    fprintf(stderr, "usage: %s @<server:port> <name>\n", argv[0]);
+    fprintf(stderr, "usage: %s @<ip_address:port> <name>\n", argv[0]);
     exit(1);
   }
   else {  
     if (argv[1][0] == '@') { // skipping argv[0]
-      strcpy(name, argv[2]); //copy argv[2] to name
-      
-      // for debugging
-      if (debug == 1) {
-        fprintf(stderr, "server: %s\n", server);
-        fprintf(stderr, "port: %i\n", port);
-        fprintf(stderr, "name: %s\n", name);
-      }
+      strcpy(name, argv[2]); // copy argv[2] to name
       
       int colonpos = 0; // position of colon for port in first argument
       char *colon; // buffer for strchr
@@ -127,34 +142,42 @@ int main(int argc, char *argv[]) {
       colon = strchr(argv[1], ':');
       
       if (colon) {
-        char buf[3] = "\0";
+        char buf[6] = "\0";
         
         colonpos = (int)(colon - argv[1]);
-        strncat(server, argv[1]+1, colonpos-1); // copy after "@" and before ":"
+        strncat(ip_address, argv[1]+1, colonpos-1); // copy after "@" and before ":"
         strncat(buf, argv[1]+colonpos+1, 3); // copy after ":" to end of char*
         
         port = atoi(buf); // atoi char* to int
       }
       else {
-        strcpy(server, argv[1]+1); // if no port just copy whole argv[1]
+        strcpy(ip_address, argv[1]+1); // if no port just copy whole argv[1]
       }
     }
     else {
-      fprintf(stderr, "usage: %s @<server:port> <name>\n", argv[0]);
+      fprintf(stderr, "usage: %s @<ip_address:port> <name>\n", argv[0]);
     }
   }
   
-  // for debugging
+  // DEBUG
   if (debug == 1) {
-    fprintf(stderr, "server: %s\n", server);
+    fprintf(stderr, "ip_address: %s\n", ip_address);
     fprintf(stderr, "port: %i\n", port);
     fprintf(stderr, "name: %s\n", name);
   }
 
-  /*
-
+  // convert name to proper dns packet format
+  convert_name(name);
+  
+  // DEBUG
+  if (debug == 1) {
+    fprintf(stderr, "converted name: %s\n", name);
+  }
+  
   // construct the DNS request
-
+  
+  /*
+  
   // send the DNS request (and call dump_packet with your request)
   
   // first, open a UDP socket  
@@ -163,8 +186,8 @@ int main(int argc, char *argv[]) {
   // next, construct the destination address
   struct sockaddr_in out;
   out.sin_family = AF_INET;
-  out.sin_port = htons(<<DNS server port number, as short>>);
-  out.sin_addr.s_addr = inet_addr(<<DNS server IP as char*>>);
+  out.sin_port = htons(<<DNS ip_address port number, as short>>);
+  out.sin_addr.s_addr = inet_addr(<<DNS ip_address IP as char*>>);
 
   if (sendto(sock, <<your packet>>, <<packet len>>, 0, &out, sizeof(out)) < 0) {
     // an error occurred
@@ -195,6 +218,9 @@ int main(int argc, char *argv[]) {
 
   // print out the result
   */
+  
+  free(ip_address);
+  free(name);
   
   return 0;
 }
