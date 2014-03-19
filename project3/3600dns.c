@@ -24,7 +24,7 @@
 
 #define MAX_ARG_LEN 39 // IPv6 addresses are 39 bytes
 
-/* converts name to proper packet format (i.e., www.google.com -> 3www6google3com0)
+/* converts name to proper packet format (i.e., www.google.com . 3www6google3com0)
  * numbers indicate the #of bytes to follow, and replace all periods (to separate
  * top-level, second-level, etc. domains) the 0 appended to the end is a signal
  * meaning “end of name”.
@@ -38,20 +38,20 @@ static void convert_name(char *name) {
   
   tok = strtok(name, "."); // split on each "."
   size = strlen(tok);
-  sprintf(toksize, "%d", size);
+  sprintf(toksize, "%c", size);
   strcat(buffer, toksize); //cat size
   strcat(buffer, tok); //cat string
   
   while ( tok = strtok(NULL, ".") ) { // go through the whole string
     size = 0;
     size = strlen(tok);
-    sprintf(toksize, "%d", size); //size to string form (kind of nasty)
+    sprintf(toksize, "%c", size); //size to string form (kind of nasty)
     strcat(buffer, toksize); //cat size
     strcat(buffer, tok); //cat string
     
     //DEBUG: fprintf(stderr, "buffer: %s\n", buffer);
  }
- strcat(buffer, "0"); //cat final zero to imply end of string
+ strcat(buffer, "\0"); //cat final zero to imply end of string
  strcpy(name, buffer);
  free(buffer);
  return name;
@@ -115,7 +115,7 @@ static void dump_packet(unsigned char *data, int size) {
 }
 
 int main(int argc, char *argv[]) {
-  int debug = 1; // debug mode is true with 1
+  int debug = 0; // debug mode is true with 1
 
   /**
    * process the arguments:
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
    * port is optional with default value of 53
    */
   
-  int port = 53; // UDP port number of DNS Server
+  short port = 53; // UDP port number of DNS Server
   char *ip_address = malloc((MAX_ARG_LEN + 1) * sizeof(char));
   char *name = malloc((MAX_ARG_LEN + 1) * sizeof(char));
     
@@ -159,26 +159,57 @@ int main(int argc, char *argv[]) {
     }
   }
   
-  // DEBUG
+  //// DEBUG ////
   if (debug == 1) {
     fprintf(stderr, "ip_address: %s\n", ip_address);
     fprintf(stderr, "port: %i\n", port);
     fprintf(stderr, "name: %s\n", name);
   }
+  ///////////////
 
   // convert name to proper dns packet format
   convert_name(name);
   
-  // DEBUG
+  //// DEBUG ////
   if (debug == 1) {
     fprintf(stderr, "converted name: %s\n", name);
   }
+  ///////////////
   
   // construct the DNS request
+  header my_header; // initialize header
+  // set my_header fields
+  my_header.id = htons(1337);
+  my_header.opcode = htons(0);
+  my_header.aa = 0;
+  my_header.tc = 0;
+  my_header.rd = 1;
+  my_header.ra = 0;
+  my_header.z = 0;
+  my_header.rcode = htons(0);
+  my_header.qdcount = htons(1);
+  my_header.ancount = htons(0);
+  my_header.nscount = 0;
+  my_header.arcount = 0;
   
-  /*
+  question my_question; // initialize question
+  // set my_question fields
+  my_question.qtype = htons(1);
+  my_question.qclass = htons(1);
+  
+  answer my_answer; // initialize answer
+  
+  char pckt_buffer[65536]; /* /48 network prefix allows 65536 */
+  int nl = strlen(name); //name length
+  
+  /* copy into buffer */
+  memset(pckt_buffer, 0, 65536);
+  memcpy(&pckt_buffer, &my_header, sizeof(header));
+  memcpy(&pckt_buffer[sizeof(header)], name, nl);
+  memcpy(&pckt_buffer[1 + sizeof(header) + nl], &my_question, sizeof(question));
   
   // send the DNS request (and call dump_packet with your request)
+  dump_packet(pckt_buffer, sizeof(header) + 1 + nl + sizeof(question));
   
   // first, open a UDP socket  
   int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -186,13 +217,15 @@ int main(int argc, char *argv[]) {
   // next, construct the destination address
   struct sockaddr_in out;
   out.sin_family = AF_INET;
-  out.sin_port = htons(<<DNS ip_address port number, as short>>);
-  out.sin_addr.s_addr = inet_addr(<<DNS ip_address IP as char*>>);
+  out.sin_port = htons(port);
+  out.sin_addr.s_addr = inet_addr(ip_address);
 
+  /*
   if (sendto(sock, <<your packet>>, <<packet len>>, 0, &out, sizeof(out)) < 0) {
     // an error occurred
   }
-
+  */
+  
   // wait for the DNS reply (timeout: 5 seconds)
   struct sockaddr_in in;
   socklen_t in_len;
@@ -207,6 +240,8 @@ int main(int argc, char *argv[]) {
   t.tv_sec = 5; //5 second timeout as specificied
   t.tv_usec = 0;
 
+  /* TODO:
+  
   // wait to receive, or for a timeout
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
     if (recvfrom(sock, <<your input buffer>>, <<input len>>, 0, &in, &in_len) < 0) {
@@ -217,6 +252,7 @@ int main(int argc, char *argv[]) {
   }
 
   // print out the result
+  
   */
   
   free(ip_address);

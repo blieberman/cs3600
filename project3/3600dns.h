@@ -11,35 +11,35 @@
 
 //// ** DNS Header Structure ** ////
 typedef struct {
- /* ID: Identifier assigned by the program that generates any kind of query. */
-  unsigned int id:16;
-  /* QR: Specifies whether this message is a query (0), or a response (1). */
-  unsigned int qr:1;
-  /* OPCODE: Specifies kind of query in this message. */
-  unsigned int opcode:4;
-  /* Authoritative Answer: specifies that the responding name ip_address is an
-   * authority for the domain name in question section */
-  unsigned int aa:1;
-  /* TrunCation: specifies that this message was truncated. */
-  unsigned int tc:1;
-  /* Recursion Desired: directs the name ip_address to pursue the query recursively. */
-  unsigned int rd:1;
-  /* Recursion Available: denotes whether recursive query support is available in 
-   * the name ip_address. */
-  unsigned int ra:1;
-  /* Reserved for future use */
-  unsigned int z:1;
-  /* Response code: 4 bit field that is set as part of responses */
-  unsigned int rcode:4;
-  /* number of entries in the question section. */
-  unsigned int qdcount:16;
-  /* number of resource records in the answer section */
-  unsigned int ancount:16;
-  /* number of name ip_address resource records in the authority records section */
-  unsigned int nscount:16;
-  /* number of resource records in the additional records section. */
-  unsigned int arcount:16;
+  //// SEPARATED OUT BY BYTES ////
+  unsigned int id:16; /* identifier assigned by the program that generates any kind of query. */
+  
+  unsigned int qr:1; /* specifies whether this message is a query (0), or a response (1). */
+  unsigned int opcode:4; /* specifies kind of query in this message. */
+  unsigned int aa:1; /* specifies that the responding name ip_address is an authority */
+  unsigned int tc:1; /* specifies that this message was truncated. */
+  unsigned int rd:1; /* directs the name ip_address to pursue the query recursively. */
+  
+  unsigned int ra:1;  /* denotes whether recursive query support is available */
+  unsigned int z:3; /* Reserved for future use */
+  unsigned int rcode:4; /* 4 bit field that is set as part of responses */
+  
+  unsigned int qdcount:16; /* number of entries in the question section. */
+  unsigned int ancount:16; /* number of resource records in the answer section */
+  unsigned int nscount:16; /* number of name ip_address resource records in the authority records section */
+  unsigned int arcount:16; /* number of resource records in the additional records section. */
 } header;
 
+typedef struct {
+  int qtype:16;
+  int qclass:16;
+} question;
+
+typedef struct {
+  int type:16;
+  int class:16;
+  int ttl:16;
+  int rdlength:16;
+} answer;
 
 #endif
