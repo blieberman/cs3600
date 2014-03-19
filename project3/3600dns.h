@@ -14,15 +14,15 @@ typedef struct {
   //// SEPARATED OUT BY BYTES ////
   unsigned int id:16; /* identifier assigned by the program that generates any kind of query. */
   
-  unsigned int qr:1; /* specifies whether this message is a query (0), or a response (1). */
-  unsigned int opcode:4; /* specifies kind of query in this message. */
-  unsigned int aa:1; /* specifies that the responding name ip_address is an authority */
-  unsigned int tc:1; /* specifies that this message was truncated. */
   unsigned int rd:1; /* directs the name ip_address to pursue the query recursively. */
+  unsigned int tc:1; /* specifies that this message was truncated. */
+  unsigned int aa:1; /* specifies that the responding name ip_address is an authority */
+  unsigned int opcode:4; /* specifies kind of query in this message. */
+  unsigned int qr:1; /* specifies whether this message is a query (0), or a response (1). */
   
-  unsigned int ra:1;  /* denotes whether recursive query support is available */
-  unsigned int z:3; /* Reserved for future use */
   unsigned int rcode:4; /* 4 bit field that is set as part of responses */
+  unsigned int z:3; /* Reserved for future use */
+  unsigned int ra:1;  /* denotes whether recursive query support is available */  
   
   unsigned int qdcount:16; /* number of entries in the question section. */
   unsigned int ancount:16; /* number of resource records in the answer section */

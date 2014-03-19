@@ -180,17 +180,18 @@ int main(int argc, char *argv[]) {
   header my_header; // initialize header
   // set my_header fields
   my_header.id = htons(1337);
-  my_header.opcode = htons(0);
-  my_header.aa = 0;
-  my_header.tc = 0;
   my_header.rd = 1;
+  my_header.tc = 0;
+  my_header.aa = 0;
+  my_header.opcode = 0;
+  my_header.qr = 0;
+  my_header.rcode = 0;
   my_header.ra = 0;
   my_header.z = 0;
-  my_header.rcode = htons(0);
   my_header.qdcount = htons(1);
   my_header.ancount = htons(0);
-  my_header.nscount = 0;
-  my_header.arcount = 0;
+  my_header.nscount = htons(0);
+  my_header.arcount = htons(0);
   
   question my_question; // initialize question
   // set my_question fields
