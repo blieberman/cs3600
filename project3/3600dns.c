@@ -30,7 +30,7 @@
  * meaning “end of name”.
  */
 static void convert_name(char *name) {
-  char *buffer = malloc(sizeof(int)); //buffer to copy tok
+  char *buffer = malloc(16*sizeof(int)); //buffer to copy tok
   char toksize[20] = "\0"; // size of the tok to append on buffer
   char *tok;
   char converted_name[strlen(name) + 2];
@@ -173,6 +173,7 @@ int main(int argc, char *argv[]) {
   //// DEBUG ////
   if (debug == 1) {
     fprintf(stderr, "converted name: %s\n", name);
+    exit(1);
   }
   ///////////////
   
