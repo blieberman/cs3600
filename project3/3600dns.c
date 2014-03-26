@@ -23,10 +23,12 @@
 #include "3600dns.h"
 
 #define MAX_ARG_LEN 39 // IPv6 addresses are 39 bytes
+#define HEADER_ID 1337
+#define DEBUG 1 // toggle 1 for on and 0 for off
 
 /* converts name to proper packet format (i.e., www.google.com . 3www6google3com0)
  * numbers indicate the #of bytes to follow, and replace all periods (to separate
- * top-level, second-level, etc. domains) the 0 appended to the end is a signal
+ * top-level, second-level, etc. domains) the \0 appended to the end is a signal
  * meaning “end of name”.
  */
 static void convert_name(char *name) {
@@ -60,7 +62,7 @@ static void convert_name(char *name) {
 
 /**
  * This function will print a hex dump of the provided packet to the screen
- * to help facilitate debugging.  In your milestone and final submission, you 
+ * to help facilitate DEBUGging.  In your milestone and final submission, you 
  * MUST call dump_packet() with your packet right before calling sendto().
  * DO NOT MODIFY THIS FUNCTION
  *
@@ -115,8 +117,6 @@ static void dump_packet(unsigned char *data, int size) {
 }
 
 int main(int argc, char *argv[]) {
-  int debug = 0; // debug mode is true with 1
-
   /**
    * process the arguments:
    * ./3600dns @<ip_address:port> <name>
@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
   }
   
   //// DEBUG ////
-  if (debug == 1) {
+  if (DEBUG == 1) {
     fprintf(stderr, "ip_address: %s\n", ip_address);
     fprintf(stderr, "port: %i\n", port);
     fprintf(stderr, "name: %s\n", name);
@@ -171,28 +171,27 @@ int main(int argc, char *argv[]) {
   convert_name(name);
   
   //// DEBUG ////
-  if (debug == 1) {
+  if (DEBUG == 1) {
     fprintf(stderr, "converted name: %s\n", name);
-    exit(1);
   }
   ///////////////
   
   // construct the DNS request
-  header my_header; // initialize header
-  // set my_header fields
-  my_header.id = htons(1337);
-  my_header.rd = 1;
-  my_header.tc = 0;
-  my_header.aa = 0;
-  my_header.opcode = 0;
-  my_header.qr = 0;
-  my_header.rcode = 0;
-  my_header.ra = 0;
-  my_header.z = 0;
-  my_header.qdcount = htons(1);
-  my_header.ancount = htons(0);
-  my_header.nscount = htons(0);
-  my_header.arcount = htons(0);
+  header sen_header; // initialize header
+  // set sen_header fields
+  sen_header.id = htons(HEADER_ID);
+  sen_header.rd = 1;
+  sen_header.tc = 0;
+  sen_header.aa = 0;
+  sen_header.opcode = 0;
+  sen_header.qr = 0;
+  sen_header.rcode = 0;
+  sen_header.ra = 0;
+  sen_header.z = 0;
+  sen_header.qdcount = htons(1);
+  sen_header.ancount = htons(0);
+  sen_header.nscount = htons(0);
+  sen_header.arcount = htons(0);
   
   question my_question; // initialize question
   // set my_question fields
@@ -205,13 +204,15 @@ int main(int argc, char *argv[]) {
   int nl = strlen(name); //name length
   
   /* copy into buffer */
-  memset(pckt_buffer, 0, 65536);
-  memcpy(&pckt_buffer, &my_header, sizeof(header));
+  memset(pckt_buffer, 0, 65536); // buffer gets zero'd out
+  memcpy(&pckt_buffer, &sen_header, sizeof(header));
   memcpy(&pckt_buffer[sizeof(header)], name, nl);
   memcpy(&pckt_buffer[1 + sizeof(header) + nl], &my_question, sizeof(question));
   
+  int pckt_len = sizeof(header) + 1 + nl + sizeof(question); // packet buffer len
+  
   // send the DNS request (and call dump_packet with your request)
-  dump_packet(pckt_buffer, sizeof(header) + 1 + nl + sizeof(question));
+  dump_packet(pckt_buffer, pckt_len);
   
   // first, open a UDP socket  
   int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -221,12 +222,24 @@ int main(int argc, char *argv[]) {
   out.sin_family = AF_INET;
   out.sin_port = htons(port);
   out.sin_addr.s_addr = inet_addr(ip_address);
-
-  /*
-  if (sendto(sock, <<your packet>>, <<packet len>>, 0, &out, sizeof(out)) < 0) {
-    // an error occurred
+  
+  if (sendto(sock, pckt_buffer, pckt_len, 0, &out, sizeof(out)) < 0) {
+    fprintf(stderr, "An error occured while sending the packet.\n");
+    return -1;
   }
-  */
+  
+  // important variables get initialized again for reuse for response
+  memset(pckt_buffer, 0, 65536);
+  //memset(&my_question, 0, sizeof(question));
+  //memset(&sen_header, 0, sizeof(header));
+  //pckt_len = 0;
+  
+  //// DEBUG ////
+  if (DEBUG == 1) {
+    fprintf(stderr, "packet cleared output:\n");
+    dump_packet(pckt_buffer, pckt_len);
+  }
+  ///////////////
   
   // wait for the DNS reply (timeout: 5 seconds)
   struct sockaddr_in in;
@@ -241,21 +254,44 @@ int main(int argc, char *argv[]) {
   struct timeval t;
   t.tv_sec = 5; //5 second timeout as specificied
   t.tv_usec = 0;
-
-  /* TODO:
   
   // wait to receive, or for a timeout
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
-    if (recvfrom(sock, <<your input buffer>>, <<input len>>, 0, &in, &in_len) < 0) {
-      // an error occured
+    if (recvfrom(sock, pckt_buffer, pckt_len, 0, &in, &in_len) < 0) {
+       fprintf(stderr, "An error occured receiving response.\n");
+       return -1;
     }
   } else {
-    // a timeout occurred
+     fprintf(stderr, "A timeout occured receiving response.\n");
+     return -2;
   }
-
-  // print out the result
   
-  */
+  //// DEBUG ////
+  if (DEBUG == 1) {
+    fprintf(stderr, "packet response output:\n");
+    dump_packet(pckt_buffer, pckt_len);
+  }
+  ///////////////
+  
+  //create received header struct
+  header rec_header;
+  
+  /////* parse response packet header */////
+  //copy header from packet buffer
+  memcpy(&rec_header, &pckt_buffer, sizeof(header));
+  //verify header fields and check for errors
+  if (ntohs(rec_header.id) != HEADER_ID || rec_header.qr != 1 ||
+    rec_header.tc != 0 || rec_header.ra != 1 || rec_header.rd != 1) {
+      fprintf(stderr, "Response packet header has errors.\n");
+      return -1;
+    }
+  
+  pckt_len = sizeof(rec_header);
+  int answercnt = ntohs(rec_header.ancount); //number of answers
+  
+  char* qname = NULL;
+  
+  printf("%i\n", answercnt);
   
   free(ip_address);
   free(name);
