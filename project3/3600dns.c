@@ -84,11 +84,12 @@ void parse_qname(char* qname, char* source, int offset) {
       qindex++;  // advance index
     }
   }
+  strcat(qname, "\0");
 }
 
 /**
  * This function will print a hex dump of the provided packet to the screen
- * to help facilitate DEBUGging.  In your milestone and final submission, you 
+ * to help facilitate debugging.  In your milestone and final submission, you 
  * MUST call dump_packet() with your packet right before calling sendto().
  * DO NOT MODIFY THIS FUNCTION
  *
@@ -182,6 +183,7 @@ int main(int argc, char *argv[]) {
     }
     else {
       fprintf(stderr, "usage: %s @<ip_address:port> <name>\n", argv[0]);
+      exit(1);
     }
   }
 
@@ -219,12 +221,10 @@ int main(int argc, char *argv[]) {
   sen_header.nscount = htons(0);
   sen_header.arcount = htons(0);
 
-  question my_question; // initialize question
-  // set my_question fields
-  my_question.qtype = htons(1);
-  my_question.qclass = htons(1);
-
-  answer my_answer; // initialize answer
+  question sen_question; // initialize question
+  // set sen_question fields
+  sen_question.qtype = htons(1);
+  sen_question.qclass = htons(1);
 
   char pckt_buffer[65536]; /* /48 network prefix allows 65536 */
   int nl = strlen(name); //name length
@@ -233,7 +233,7 @@ int main(int argc, char *argv[]) {
   memset(pckt_buffer, 0, 65536); // buffer gets zero'd out
   memcpy(&pckt_buffer, &sen_header, sizeof(header));
   memcpy(&pckt_buffer[sizeof(header)], name, nl);
-  memcpy(&pckt_buffer[1 + sizeof(header) + nl], &my_question, sizeof(question));
+  memcpy(&pckt_buffer[1 + sizeof(header) + nl], &sen_question, sizeof(question));
 
   int pckt_len = sizeof(header) + 1 + nl + sizeof(question); // packet buffer len
 
@@ -250,15 +250,12 @@ int main(int argc, char *argv[]) {
   out.sin_addr.s_addr = inet_addr(ip_address);
 
   if (sendto(sock, pckt_buffer, pckt_len, 0, &out, sizeof(out)) < 0) {
-    fprintf(stderr, "An error occured while sending the packet.\n");
+    fprintf(stderr, "Error: a problem occured while sending the packet.\n");
     return -1;
   }
 
-  // important variables get initialized again for reuse for response
+  // buffer gets initialized again for reuse for response
   memset(pckt_buffer, 0, 65536);
-  //memset(&my_question, 0, sizeof(question));
-  //memset(&sen_header, 0, sizeof(header));
-  //pckt_len = 0;
 
   //// DEBUG ////
   if (DEBUG == 1) {
@@ -284,11 +281,11 @@ int main(int argc, char *argv[]) {
   // wait to receive, or for a timeout
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
     if (recvfrom(sock, pckt_buffer, pckt_len, 0, &in, &in_len) < 0) {
-       fprintf(stderr, "An error occured receiving response.\n");
+       fprintf(stderr, "Error: A problem occured receiving response.\n");
        return -1;
     }
   } else {
-     fprintf(stderr, "A timeout occured receiving response.\n");
+     fprintf(stderr, "NORESPONSE\n");
      return -2;
   }
 
@@ -302,7 +299,7 @@ int main(int argc, char *argv[]) {
   // create received header struct
   header rec_header;
 
-  /////* parse response packet header */////
+  /////* PARSE RESPONSE PACKET HEADER */////
   // copy header from packet buffer
   memcpy(&rec_header, &pckt_buffer, sizeof(header));
 
@@ -312,28 +309,60 @@ int main(int argc, char *argv[]) {
     rec_header.tc != 0 ||
     rec_header.ra != 1 ||
     rec_header.rd != 1) {
-      fprintf(stderr, "Response packet header has errors.\n");
+      fprintf(stderr, "Error: Response packet header is compromised.\n");
       return -1;
   }
-
-  pckt_len = sizeof(rec_header);
-  int answercnt = ntohs(rec_header.ancount); //number of answers
-  // allocate sizeof sent name + 2
-  unsigned char* rec_qname = (char *) malloc(2 + strlen(name));
+  if (rec_header.rcode == 3) {
+    fprintf(stderr, "NOTFOUND\n");
+    return -1;
+  }
   
-  // parse received packet header qname
-  parse_qname(rec_qname, pckt_buffer, pckt_len);
-
+  int answercnt = ntohs(rec_header.ancount); //number of answers
   //// DEBUG ////
   if (DEBUG == 1) {
     fprintf(stderr, "answer count: %i\n", answercnt);
-    fprintf(stderr, "rec_qname after: %s\n", rec_qname);
-    fprintf(stderr, "sizeof rec_qname: %i\n", sizeof(rec_qname));
   }
   ///////////////
+  
+  pckt_len = sizeof(rec_header);
+  
+  /////* PARSE RESPONSE PACKET HEADER */////
+  unsigned char* rec_qname = malloc(1 + strlen(name));
+  /// parse received qname ///
+  parse_qname(rec_qname, pckt_buffer, pckt_len);
+  //// DEBUG ////
+  if (DEBUG == 1) {
+    fprintf(stderr, "rec_qname after: %s\n", rec_qname);
+  }
+  ///////////////
+  
+  pckt_len += strlen(rec_qname); // add onto packet length index
+  
+  /////* PARSE RECEIVED QUESTION */////
+  question rec_question; // initialize question
+  
+  // check for qname consistency via compare to argv[2]
+  if (strcmp((const char*)rec_qname, argv[2]) != 0) {
+    fprintf(stderr, "Error: Received question name is compromised.\n");
+    return -1;
+  }
+  
+  memcpy(&rec_question, pckt_buffer+pckt_len, sizeof(question));
+  
+  if (ntohs(rec_question.qclass) != 1) {
+    fprintf(stderr, "Error: Received question is compromised.\n");
+      return 1;
+  }
+  
+  pckt_len += sizeof(question); // add onto packet length index
+  
+  /////* PARSE RECEIVED ANSWER */////
+  answer my_answer; // initialize answer
+  /// parse received answer ///
+  memcpy(&my_answer, pckt_buffer+pckt_len, sizeof(answer));
 
   free(ip_address);
   free(name);
-  //free(rec_qname);
+  free(rec_qname);
   return 0;
 }
