@@ -61,17 +61,15 @@ static void convert_name(char *name) {
 /* parses question name to readable format;
  * takes in destination, source and position variables
  */
-void parse_qname(char* qname, char* source, int offset) {
+int parse_qname(char* qname, char* source, int offset) {
   //3www6goolgle3com -> www.google.com
-  
-  //to debug along the way of development
-  //fprintf(stderr, "qname before: %s\n", qname);
   
   int label_len = 0;
   label_len = source[offset]; //length designated by start label
   int curpos = offset + 1; // current position after label
   
   int qindex = 0;
+  int index = 0;
   
   for(char a = 0; source[curpos] != a; curpos++) { // loop through until zero byte
     unsigned char curchar = source[curpos]; // pop top char from buffer
@@ -83,8 +81,10 @@ void parse_qname(char* qname, char* source, int offset) {
       qname[qindex] = curchar;
       qindex++;  // advance index
     }
+    index++;
   }
-  strcat(qname, "\0");
+  return index;
+  //strcat(qname, "\0");
 }
 
 /**
@@ -216,15 +216,15 @@ int main(int argc, char *argv[]) {
   sen_header.rcode = 0;
   sen_header.ra = 0;
   sen_header.z = 0;
-  sen_header.qdcount = htons(1);
+  sen_header.qdcount = htons(0x0001);
   sen_header.ancount = htons(0);
   sen_header.nscount = htons(0);
   sen_header.arcount = htons(0);
 
   question sen_question; // initialize question
   // set sen_question fields
-  sen_question.qtype = htons(1);
-  sen_question.qclass = htons(1);
+  sen_question.qtype = htons(0x0001);
+  sen_question.qclass = htons(0x0001);
 
   char pckt_buffer[65536]; /* /48 network prefix allows 65536 */
   int nl = strlen(name); //name length
@@ -280,12 +280,13 @@ int main(int argc, char *argv[]) {
 
   // wait to receive, or for a timeout
   if (select(sock + 1, &socks, NULL, NULL, &t)) {
-    if (recvfrom(sock, pckt_buffer, pckt_len, 0, &in, &in_len) < 0) {
+    if (recvfrom(sock, pckt_buffer, sizeof(pckt_buffer), 0, &in, &in_len) < 0) {
        fprintf(stderr, "Error: A problem occured receiving response.\n");
        return -1;
     }
   } else {
-     fprintf(stderr, "NORESPONSE\n");
+     //fprintf(stderr, "NORESPONSE\n");
+     printf("NORESPONSE\n");
      return -2;
   }
 
@@ -295,6 +296,8 @@ int main(int argc, char *argv[]) {
     dump_packet(pckt_buffer, pckt_len);
   }
   ///////////////
+
+  pckt_len = 0;
 
   // create received header struct
   header rec_header;
@@ -313,7 +316,8 @@ int main(int argc, char *argv[]) {
       return -1;
   }
   if (rec_header.rcode == 3) {
-    fprintf(stderr, "NOTFOUND\n");
+    //fprintf(stderr, "NOTFOUND\n");
+    printf("NOTFOUND\n");
     return -1;
   }
   
@@ -321,25 +325,21 @@ int main(int argc, char *argv[]) {
   //// DEBUG ////
   if (DEBUG == 1) {
     fprintf(stderr, "answer count: %i\n", answercnt);
+    fprintf(stderr, "[pckt_len]: %i\n", pckt_len);
   }
   ///////////////
   
-  pckt_len = sizeof(rec_header);
+  pckt_len = sizeof(header);
   
-  /////* PARSE RESPONSE PACKET HEADER */////
+  /////* PARSE RECEIVED QUESTION */////
   unsigned char* rec_qname = malloc(1 + strlen(name));
   /// parse received qname ///
-  parse_qname(rec_qname, pckt_buffer, pckt_len);
+  pckt_len += parse_qname(rec_qname, pckt_buffer, pckt_len);
   //// DEBUG ////
   if (DEBUG == 1) {
     fprintf(stderr, "rec_qname after: %s\n", rec_qname);
   }
   ///////////////
-  
-  pckt_len += strlen(rec_qname); // add onto packet length index
-  
-  /////* PARSE RECEIVED QUESTION */////
-  question rec_question; // initialize question
   
   // check for qname consistency via compare to argv[2]
   if (strcmp((const char*)rec_qname, argv[2]) != 0) {
@@ -347,22 +347,51 @@ int main(int argc, char *argv[]) {
     return -1;
   }
   
-  memcpy(&rec_question, pckt_buffer+pckt_len, sizeof(question));
+  pckt_len += 2;
   
+  question rec_question; // initialize question
+  memcpy(&rec_question, &pckt_buffer[pckt_len], sizeof(question));
+  
+  //// DEBUG ////
+  if (DEBUG == 1) {
+    fprintf(stderr, "[pckt_len]: %i\n", pckt_len);
+    fprintf(stderr, "rec_question[pos]: %i\n", pckt_buffer[pckt_len]);
+    fprintf(stderr, "rec_question.qtype: %i\n", ntohs(rec_question.qtype));
+    fprintf(stderr, "rec_question.qclass: %i\n", ntohs(rec_question.qclass));
+  }
+  /////////////// 
   if (ntohs(rec_question.qclass) != 1) {
     fprintf(stderr, "Error: Received question is compromised.\n");
       return 1;
   }
   
-  pckt_len += sizeof(question); // add onto packet length index
+  pckt_len += sizeof(question) + 1; // add onto packet length index
   
   /////* PARSE RECEIVED ANSWER */////
-  answer my_answer; // initialize answer
+  answer rec_answer; // initialize answer
   /// parse received answer ///
-  memcpy(&my_answer, pckt_buffer+pckt_len, sizeof(answer));
-
+  memcpy(&rec_answer, pckt_buffer+pckt_len, sizeof(answer));
+  //// DEBUG ////
+  if (DEBUG == 1) {
+    fprintf(stderr, "rec_answer.type: %i\n", ntohs(rec_answer.type));
+    fprintf(stderr, "rec_answer.class: %i\n", ntohs(rec_answer.class));
+    fprintf(stderr, "rec_answer.ttl: %i\n", ntohs(rec_answer.ttl));
+    fprintf(stderr, "rec_answer.rdlength: %i\n", ntohs(rec_answer.rdlength));
+  }
+  ///////////////  
+  
+ // if (ntohs(rec_answer.class) != 1) {
+//    fprintf(stderr, "NOTFOUND\n");
+//    return -1;
+//  }
+  
+  unsigned char* rdata = malloc(156 * sizeof(char));
+  
+  // free malloc'd variables
   free(ip_address);
   free(name);
   free(rec_qname);
+  free(rdata);
+  
   return 0;
 }
