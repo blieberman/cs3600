@@ -62,9 +62,10 @@ static void convert_name(char *name) {
  * takes in destination, source and position variables
  */
 void parse_qname(char* qname, char* source, int offset) {
-  //[3]www[6]goolgle[3]com
+  //3www6goolgle3com -> www.google.com
+  
   //to debug along the way of development
-  fprintf(stderr, "qname before: %s\n", qname);
+  //fprintf(stderr, "qname before: %s\n", qname);
   
   int label_len = 0;
   label_len = source[offset]; //length designated by start label
@@ -83,34 +84,7 @@ void parse_qname(char* qname, char* source, int offset) {
       qindex++;  // advance index
     }
   }
-  
-
-//  else {
-//    fprintf(stderr, "source[%i]: %s\n", curpos, source[curpos]);
-//  }
-  //fprintf(stderr, "qname[offset_acc]: %i\n", qname[0]);
-  //fprintf(stderr, "qname[1]: %c\n", qname[1]);
 }
-  
- /* for(char a = 0; source[curpos] != a; curpos++) {
-    if (count == 0 && flag == 0) {
-      count = source[curpos];
-      if (flag==1) {
-        qname[qindex] = '.';
-      }
-    }
-    else {
-      qname[qindex] = source[curpos];
-      count --;
-    }
-    qindex ++;
-    flag = 1;
-  }
-  
-  qname[qindex] = source[curpos];
-  
-}
-
 
 /**
  * This function will print a hex dump of the provided packet to the screen
