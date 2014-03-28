@@ -37,7 +37,7 @@ typedef struct {
 typedef struct {
   int type:16;
   int class:16;
-  int ttl:16;
+  int ttl:32;
   int rdlength:16;
 } answer;
 
