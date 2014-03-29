@@ -28,51 +28,54 @@
 
 /* converts name to proper packet format (i.e., www.google.com . 3www6google3com0)
  * numbers indicate the #of bytes to follow, and replace all periods (to separate
- * top-level, second-level, etc. domains) the \0 appended to the end is a signal
+ * top-level, second-level, etc. domains) the \0 appended to the end is curchar signal
  * meaning “end of name”.
  */
-static void convert_name(char *name) {
-  char *buffer = malloc(16*sizeof(int)); //buffer to copy tok
+static void nameToDNS(char *name) {
+  char *buffer = malloc(16*sizeof(int)); // buffer to copy tok
   char toksize[20] = "\0"; // size of the tok to append on buffer
   char *tok;
-  char converted_name[strlen(name) + 2];
   int size = 0;
 
   tok = strtok(name, "."); // split on each "."
   size = strlen(tok);
   sprintf(toksize, "%c", size);
-  strcat(buffer, toksize); //cat size
-  strcat(buffer, tok); //cat string
+  strcat(buffer, toksize); // cat size
+  strcat(buffer, tok); // cat string
 
-  while ( tok = strtok(NULL, ".") ) { // go through the whole string
+  while ( (tok = strtok(NULL, ".")) ) { // go through the whole string
     size = 0;
     size = strlen(tok);
-    sprintf(toksize, "%c", size); //size to string form (kind of nasty)
-    strcat(buffer, toksize); //cat size
-    strcat(buffer, tok); //cat string
+    sprintf(toksize, "%c", size); // size to string form (kind of nasty)
+    strcat(buffer, toksize); // cat size
+    strcat(buffer, tok); // cat string
 
     //DEBUG: fprintf(stderr, "buffer: %s\n", buffer);
  }
- strcat(buffer, "\0"); //cat final zero to imply end of string
+ strcat(buffer, "\0"); // cat final zero to imply end of string
  strcpy(name, buffer);
  free(buffer);
 }
 
-/* parses question name to readable format;
- * takes in destination, source and position variables
- */
-int parse_qname(char* qname, char* source, int offset) {
+int DNSToName(unsigned char* qname, unsigned char* source, int offset) {
   //3www6goolgle3com -> www.google.com
   
-  int label_len = 0;
-  label_len = source[offset]; //length designated by start label
   int curpos = offset + 1; // current position after label
+  int qindex = 0; // index for qname
+  int finlen = 0; // count for final length
+  int flag = 0;
   
-  int qindex = 0;
-  int index = 0;
-  
-  for(char a = 0; source[curpos] != a; curpos++) { // loop through until zero byte
-    unsigned char curchar = source[curpos]; // pop top char from buffer
+  unsigned char curchar = source[curpos]; // pop top char from buffer
+    
+  while(curchar != 0) {
+    /* check for compression */
+    if ((curchar & 0xc0) == 0xc0) { // 0xc0 = 0b11000000
+      unsigned short ptr = (source[offset] << 8) + source[offset + 1];
+      ptr &= 0x3fff; // 0x3fff = 0b11111111111111
+      curpos = ptr;
+      printf("HEYYYY\n");
+      flag++;
+    }
     if ((int)curchar > 0 && (int)curchar <= 9) { // is the char a number?
       qname[qindex] = '.'; // cat . between labels
       qindex++; // advance qname index
@@ -81,14 +84,41 @@ int parse_qname(char* qname, char* source, int offset) {
       qname[qindex] = curchar;
       qindex++;  // advance index
     }
-    index++;
+    printf("qname: %s\n", qname);
+    finlen++;
+    curpos++;
+    curchar = source[curpos];
   }
-  return index;
+  //// DEBUG ////
+  if (DEBUG == 0) {
+    printf("finlen: %i\n", finlen);
+    printf("curpos: %i\n", curpos);
+    printf("offset: %i\n", offset);
+  }
+  ///////////////
   //strcat(qname, "\0");
+  return finlen;
+}
+
+/* converts dns encoded ip address to decimal ip address */
+int DNSToIP(unsigned char* rd, unsigned char* source, int offset) {
+  unsigned char curchar = source[offset];
+  int position = offset + 1;
+  unsigned char segs[4];
+  
+  for (int i = 0; i < 4; i++) {
+    segs[i] = curchar; // IP address segments
+    curchar = source[position];
+    position++;
+  }
+  // save in decimal form
+  sprintf((char*)rd,"%d.%d.%d.%d", segs[0], segs[1], segs[2], segs[3]);
+  // always return four due to four segments
+  return 4;
 }
 
 /**
- * This function will print a hex dump of the provided packet to the screen
+ * This function will print curchar hex dump of the provided packet to the screen
  * to help facilitate debugging.  In your milestone and final submission, you 
  * MUST call dump_packet() with your packet right before calling sendto().
  * DO NOT MODIFY THIS FUNCTION
@@ -196,7 +226,7 @@ int main(int argc, char *argv[]) {
   ///////////////
 
   // convert name to proper dns packet format
-  convert_name(name);
+  nameToDNS(name);
 
   //// DEBUG ////
   if (DEBUG == 1) {
@@ -226,7 +256,7 @@ int main(int argc, char *argv[]) {
   sen_question.qtype = htons(0x0001);
   sen_question.qclass = htons(0x0001);
 
-  char pckt_buffer[65536]; /* /48 network prefix allows 65536 */
+  unsigned char pckt_buffer[65536]; /* /48 network prefix allows 65536 */
   int nl = strlen(name); //name length
 
   /* copy into buffer */
@@ -325,36 +355,34 @@ int main(int argc, char *argv[]) {
   //// DEBUG ////
   if (DEBUG == 1) {
     fprintf(stderr, "answer count: %i\n", answercnt);
-    fprintf(stderr, "[pckt_len]: %i\n", pckt_len);
   }
   ///////////////
   
   pckt_len = sizeof(header);
   
   /////* PARSE RECEIVED QUESTION */////
-  unsigned char* rec_qname = malloc(1 + strlen(name));
+  unsigned char* q_name = malloc(1 + strlen(name));
   /// parse received qname ///
-  pckt_len += parse_qname(rec_qname, pckt_buffer, pckt_len);
+  pckt_len += DNSToName(q_name, pckt_buffer, pckt_len);
   //// DEBUG ////
   if (DEBUG == 1) {
-    fprintf(stderr, "rec_qname after: %s\n", rec_qname);
+    fprintf(stderr, "q_name after: %s\n", q_name);
   }
   ///////////////
   
   // check for qname consistency via compare to argv[2]
-  if (strcmp((const char*)rec_qname, argv[2]) != 0) {
+  if (strcmp((const char*)q_name, argv[2]) != 0) {
     fprintf(stderr, "Error: Received question name is compromised.\n");
     return -1;
   }
   
-  pckt_len += 2;
+  //pckt_len += 2;
   
   question rec_question; // initialize question
   memcpy(&rec_question, &pckt_buffer[pckt_len], sizeof(question));
   
   //// DEBUG ////
   if (DEBUG == 1) {
-    fprintf(stderr, "[pckt_len]: %i\n", pckt_len);
     fprintf(stderr, "rec_question[pos]: %i\n", pckt_buffer[pckt_len]);
     fprintf(stderr, "rec_question.qtype: %i\n", ntohs(rec_question.qtype));
     fprintf(stderr, "rec_question.qclass: %i\n", ntohs(rec_question.qclass));
@@ -365,33 +393,74 @@ int main(int argc, char *argv[]) {
       return 1;
   }
   
-  pckt_len += sizeof(question) + 1; // add onto packet length index
+  pckt_len += sizeof(question); // add onto packet length index
   
   /////* PARSE RECEIVED ANSWER */////
-  answer rec_answer; // initialize answer
-  /// parse received answer ///
-  memcpy(&rec_answer, pckt_buffer+pckt_len, sizeof(answer));
-  //// DEBUG ////
-  if (DEBUG == 1) {
-    fprintf(stderr, "rec_answer.type: %i\n", ntohs(rec_answer.type));
-    fprintf(stderr, "rec_answer.class: %i\n", ntohs(rec_answer.class));
-    fprintf(stderr, "rec_answer.ttl: %i\n", ntohs(rec_answer.ttl));
-    fprintf(stderr, "rec_answer.rdlength: %i\n", ntohs(rec_answer.rdlength));
+  unsigned char* q_name2 = malloc(1 + strlen(name));
+  
+  for(; answercnt > 0; answercnt--) { //for all answers
+    memset(q_name2,0,sizeof(q_name2));
+    
+    /// parse received qname ///
+    pckt_len += DNSToName(q_name2, pckt_buffer, pckt_len);
+    //// DEBUG ////
+    if (DEBUG == 1) {
+      fprintf(stderr, "q_name2 after: %s\n", q_name);
+    }
+    ///////////////
+  
+    // check for qname consistency via compare to argv[2]
+    if (strcmp((const char*)q_name, argv[2]) != 0) {
+      fprintf(stderr, "Error: Received question name is compromised.\n");
+      return -1;
+    }
+  
+    answer rec_answer; // initialize answer
+    /// parse rest received answer ///
+    memcpy(&rec_answer, pckt_buffer+pckt_len, sizeof(answer));
+    //// DEBUG ////
+    if (DEBUG == 1) {
+      fprintf(stderr, "rec_answer.type: %i\n", ntohs(rec_answer.type));
+      fprintf(stderr, "rec_answer.class: %i\n", ntohs(rec_answer.class));
+      fprintf(stderr, "rec_answer.ttl: %i\n", ntohs(rec_answer.ttl));
+      fprintf(stderr, "rec_answer.rdlength: %i\n", ntohs(rec_answer.rdlength));
+    }
+    /////////////// 
+  
+    // verify class errors
+    if (ntohs(rec_answer.class) != 1) {
+      fprintf(stderr, "NOTFOUND\n");
+      return -1; 
+    }
+    /// parse received data ///
+    pckt_len += sizeof(answer) - 2;
+    unsigned char* rd = malloc(156 * sizeof(char));
+    // print IP address
+    if (ntohs(rec_answer.type) == 1) {
+      DNSToIP(rd, pckt_buffer, pckt_len);
+      printf("IP\t%s", rd);
+      pckt_len += ntohs(rec_answer.rdlength);
+    }
+    // print CNAME
+    else if (ntohs(rec_answer.type) == 5) {
+      pckt_len += DNSToName(rd, pckt_buffer, pckt_len);
+      printf("CNAME\t%s", rd);
+    }
+    
+    // auth or not based on information from header
+    if (rec_header.aa == 1) {
+      printf("\tauth\n");
+    }
+    else {
+      printf("\tnonauth\n");
+    }
+    free(rd);
   }
-  ///////////////  
-  
- // if (ntohs(rec_answer.class) != 1) {
-//    fprintf(stderr, "NOTFOUND\n");
-//    return -1;
-//  }
-  
-  unsigned char* rdata = malloc(156 * sizeof(char));
-  
+    
   // free malloc'd variables
   free(ip_address);
   free(name);
-  free(rec_qname);
-  free(rdata);
-  
+  free(q_name);    
+  free(q_name2);
   return 0;
 }
