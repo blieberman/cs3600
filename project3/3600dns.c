@@ -24,7 +24,7 @@
 
 #define MAX_ARG_LEN 39 // IPv6 addresses are 39 bytes
 #define HEADER_ID 1337
-#define DEBUG 1 // toggle 1 for on and 0 for off
+#define DEBUG 0 // toggle 1 for on and 0 for off
 
 /* converts name to proper packet format (i.e., www.google.com . 3www6google3com0)
  * numbers indicate the #of bytes to follow, and replace all periods (to separate
@@ -63,7 +63,6 @@ int DNSToName(unsigned char* qname, unsigned char* source, int offset) {
   int curpos = offset + 1; // current position after label
   int qindex = 0; // index for qname
   int finlen = 0; // count for final length
-  int flag = 0;
   
   unsigned char curchar = source[curpos]; // pop top char from buffer
     
@@ -73,8 +72,6 @@ int DNSToName(unsigned char* qname, unsigned char* source, int offset) {
       unsigned short ptr = (source[offset] << 8) + source[offset + 1];
       ptr &= 0x3fff; // 0x3fff = 0b11111111111111
       curpos = ptr;
-      printf("HEYYYY\n");
-      flag++;
     }
     if ((int)curchar > 0 && (int)curchar <= 9) { // is the char a number?
       qname[qindex] = '.'; // cat . between labels
@@ -84,13 +81,12 @@ int DNSToName(unsigned char* qname, unsigned char* source, int offset) {
       qname[qindex] = curchar;
       qindex++;  // advance index
     }
-    printf("qname: %s\n", qname);
     finlen++;
     curpos++;
     curchar = source[curpos];
   }
   //// DEBUG ////
-  if (DEBUG == 0) {
+  if (DEBUG == 1) {
     printf("finlen: %i\n", finlen);
     printf("curpos: %i\n", curpos);
     printf("offset: %i\n", offset);

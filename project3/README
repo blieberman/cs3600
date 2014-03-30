@@ -1,0 +1,51 @@
+====================
+CS3600: Project 3  |
+Team  : blieberman |
+Author: bliebs     |
+====================
+
+ .--.  _                .-.          .---. .-..-. .--.    .--. .-.   _              .-. 
+: .--':_;               : :          : .  :: `: :: .--'  : .--': :  :_;            .' `.
+`. `. .-.,-.,-.,-..---. : :   .--.   : :: :: .` :`. `.   : :   : :  .-. .--. ,-.,-.`. .'
+ _`, :: :: ,. ,. :: .; `: :_ ' '_.'  : :; :: :. : _`, :  : :__ : :_ : :' '_.': ,. : : : 
+`.__.':_;:_;:_;:_;: ._.'`.__;`.__.'  :___.':_;:_;`.__.'  `.__.'`.__;:_;`.__.':_;:_; :_; 
+                  : :                                                                   
+                  :_;                                                                   
+
+***|USAGE|***
+./3600dns @<server:port> <name>
+port   :  (Optional) The UDP port number of the DNS server. Default value: 53
+server :  (Required) The IP address of the DNS server, in a.b.c.d format
+name   :  (Required) The name to query for.
+*************
+
+************
+After sending the request, the client will wait for a reply for 5 seconds.
+If no reply is heard within this time window, the client will exit indicating
+that a timeout occurred, by printing out the NORESPONSE message.
+
+The client will then wait for a response from the server, and print the result to standard
+output using the following format:
+
+IP <tab> <IP address> <tab> <auth|nonauth>
+CNAME <tab> <alias> <tab> <auth|nonauth>
+NOTFOUND
+NORESPONSE
+ERROR <tab> <description of the error>
+
+If an response to a query contains multiple answers (such as multiple IP addresses or aliases),
+The client will print an IP or CNAME line for each one of these. If the requested name does not
+exist, The client will print a NOTFOUND line. If no response is ever received from the server (i.e.,
+you've waited 5 seconds and not received anything), The client will print a NORESPONSE line.
+
+Finally, if any other error occurs, The client will print an ERROR line containing a description
+of the error.
+*************
+
+***|DEBUGGING|***
+Throughout the development of the project there were numerous times where I
+needed to printf the values of certain variables in the packet in order to troubleshoot problems.
+Because of this I strategically placed comments denoted debugging functions. You can toggle
+debug mode off or on by setting the DEBUG constant at the top of 3600dns.c file to "1".
+I also used GDB to get past certain memory stack errors.
+*****************
